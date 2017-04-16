@@ -1,21 +1,21 @@
 /*
  * main.c
  *
- *  Created on: Apr 15, 2017
+ *  Created on: Apr 16, 2017
  *      Author: Stefan
  */
+
+
 #include<stdio.h>
 #include<pthread.h>
 #include<semaphore.h>
 #include<unistd.h>
 
+#include "FIFO.h"
+
+
 //Die lange des string mit dem buchstaben
 #define STRING_LAENGE 26
-
-//Der puffer
-char puffer[10];
-//Ein zeiger auf der momentanen position im puffer
-int pufferZeiger;
 
 //Der mutex der sich um denn puffer kummert
 pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -42,8 +42,7 @@ void *producer_1_f(void *a){
 
 			//Critical section anfang
 			pthread_mutex_lock(&haupt_mutex);
-			puffer[pufferZeiger] = string[charZeiger];
-			pufferZeiger++;
+			FIFO_push(string[charZeiger]);
 			pthread_mutex_unlock(&haupt_mutex);
 
 			//Critical section ende
@@ -69,8 +68,7 @@ void *producer_2_f(void *a){
 					sem_wait(&puffer_input);
 					//Critical section anfang
 					pthread_mutex_lock(&haupt_mutex);
-					puffer[pufferZeiger] = string[charZeiger];
-					pufferZeiger++;
+					FIFO_push(string[charZeiger]);
 					pthread_mutex_unlock(&haupt_mutex);
 					//Critical section ende
 					sem_post(&puffer_output);
@@ -92,9 +90,7 @@ void *consumer_f(void *a){
 
 						//Critical section anfang
 						pthread_mutex_lock(&haupt_mutex);
-						var = puffer[pufferZeiger-1];
-						puffer[pufferZeiger-1]='_';
-						pufferZeiger--;
+						var = FIFO_pop();
 						pthread_mutex_unlock(&haupt_mutex);
 
 						//Critical section ende
@@ -131,11 +127,7 @@ void *control_f(void *a){
 int main(){
 	printf("Programm ist gestartet worden\n");
 	fflush(stdout);
-	int i;
-	for(i = 0; i < 10; i++){
-		puffer[i] = '_';
-	}
-	pufferZeiger = 0;
+	FIFO_init();
 
 	sem_init(&puffer_input, 0, 10);
 	sem_init(&puffer_output, 0, 0);
@@ -197,4 +189,6 @@ int main(){
 
 	return 0;
 }
+
+
 
