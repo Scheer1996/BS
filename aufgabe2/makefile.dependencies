@@ -1,0 +1,2 @@
+main.o: main.c FIFO.h
+FIFO.o: FIFO.c FIFO.h
