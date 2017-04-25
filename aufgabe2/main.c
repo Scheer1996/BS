@@ -11,6 +11,8 @@
 #include<semaphore.h>
 #include<unistd.h>
 
+#define SEMAPHORE 1
+
 #include "FIFO.h"
 
 
@@ -18,66 +20,74 @@
 #define STRING_LAENGE 26
 
 //Der mutex der sich um denn puffer kummert
-pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 //Der mutex der denn consumer 1 blockt
 pthread_mutex_t consumer_1_m = PTHREAD_MUTEX_INITIALIZER;
 //Der mutex der denn consumer 2 blockt
 pthread_mutex_t consumer_2_m = PTHREAD_MUTEX_INITIALIZER;
 
+#ifdef SEMAPHORE
 //Der semaphor fuer einfugen in den puffer
 sem_t puffer_input;
 //Der semaphore fuer rausnehmen aus den puffer
 sem_t puffer_output;
 
-void *producer_1_f(void *a){
-	char* string = "abcdefghijklmnopqrstuvwxyz";//Der string
+#else
+//Die conditional variable fuer eingugen in den puffer
+pthread_cond_t cond_p = PTHREAD_COND_INITIALIZER;
+//Die conditional variable fuer rausnehmen aus den puffer
+pthread_cond_t cond_c = PTHREAD_COND_INITIALIZER;
+
+#endif
+
+void producerFunction(char*string,pthread_mutex_t* consumer_m){
+
 	int charZeiger = 0;//Momentane position im string
 
-	while(1){
-		pthread_mutex_lock(&consumer_1_m);//check ob der producer 1 geblockt ist
-		pthread_mutex_unlock(&consumer_1_m);
+		while(1){
+			pthread_mutex_lock(consumer_m);//check ob der producer 1 geblockt ist
+			pthread_mutex_unlock(consumer_m);
+			sleep(3);
 
-		sleep(3);
-			sem_wait(&puffer_input);//check ob der puffer frei ist
+				#ifdef SEMAPHORE
+					sem_wait(&puffer_input);//check ob der puffer frei ist
 
-			//Critical section anfang
-			pthread_mutex_lock(&haupt_mutex);
-			FIFO_push(string[charZeiger]);
-			pthread_mutex_unlock(&haupt_mutex);
+					pthread_mutex_lock(&haupt_mutex);
+					FIFO_push(string[charZeiger]);
+					pthread_mutex_unlock(&haupt_mutex);
 
-			//Critical section ende
-			sem_post(&puffer_output);//erhoht den puffer fuer output so das er weiss man kann draus lessen
+					sem_post(&puffer_output);
 
-			charZeiger++;//Geht zur nachste position im string
-			if(charZeiger==STRING_LAENGE){
-				charZeiger=0;
-			}
+				#else
+					//Critical section anfang
+					pthread_mutex_lock(&haupt_mutex);
+					while(FIFO_getLength() == 10) pthread_cond_wait(&cond_p,&haupt_mutex);//Condition variable
+					FIFO_push(string[charZeiger]);
+					pthread_mutex_unlock(&haupt_mutex);
+					//Critical section ende
 
-	}
+					pthread_cond_signal(&cond_c);
+
+				#endif
+
+				charZeiger++;//Geht zur nachste position im string
+				if(charZeiger==STRING_LAENGE){
+					charZeiger=0;
+				}
+		}
+
+}
+
+void *producer_1_f(void *a){
+	char* string = "abcdefghijklmnopqrstuvwxyz";//Der string
+	producerFunction(string,&consumer_1_m);
 	return NULL;
 }
 //Das selbe wie producer 1
 void *producer_2_f(void *a){
 	char* string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	int charZeiger = 0;
-
-		while(1){
-			pthread_mutex_lock(&consumer_2_m);
-			pthread_mutex_unlock(&consumer_2_m);
-			sleep(3);
-					sem_wait(&puffer_input);
-					//Critical section anfang
-					pthread_mutex_lock(&haupt_mutex);
-					FIFO_push(string[charZeiger]);
-					pthread_mutex_unlock(&haupt_mutex);
-					//Critical section ende
-					sem_post(&puffer_output);
-
-					charZeiger++;
-					if(charZeiger==STRING_LAENGE){
-						charZeiger=0;
-					}
-		}
+	producerFunction(string,&consumer_2_m);
 	return NULL;
 }
 
@@ -86,18 +96,26 @@ void *consumer_f(void *a){
 
 	while(1){
 				sleep(2);
-						sem_wait(&puffer_output);
+					#ifdef SEMAPHORE
+						sem_wait(&puffer_output);;//check ob der puffer frei ist
 
-						//Critical section anfang
 						pthread_mutex_lock(&haupt_mutex);
 						var = FIFO_pop();
 						pthread_mutex_unlock(&haupt_mutex);
 
-						//Critical section ende
 						sem_post(&puffer_input);
+					#else
+						//Critical section anfang
+						pthread_mutex_lock(&haupt_mutex);
+						while(FIFO_getLength() == 0) pthread_cond_wait(&cond_c,&haupt_mutex);
+						var = FIFO_pop();
+						pthread_mutex_unlock(&haupt_mutex);
+						//Critical section ende
+						pthread_cond_signal(&cond_p);
 
-						printf("%c",var);
-						fflush(stdout);
+					#endif
+					printf("%c",var);
+					fflush(stdout);
 
 			}
 	return NULL;
@@ -129,8 +147,10 @@ int main(){
 	fflush(stdout);
 	FIFO_init();
 
-	sem_init(&puffer_input, 0, 10);
-	sem_init(&puffer_output, 0, 0);
+	#ifdef SEMAPHORE
+		sem_init(&puffer_input, 0, 10);
+		sem_init(&puffer_output, 0, 0);
+	#endif
 
 	pthread_t producer_1_t;
 	pthread_t producer_2_t;
@@ -177,12 +197,17 @@ int main(){
 	pthread_cancel(producer_2_t);
 	pthread_cancel(consumer_t);
 
-	sem_destroy(&puffer_input);
-	sem_destroy(&puffer_output);
+	#ifdef SEMAPHORE
+		sem_destroy(&puffer_input);
+		sem_destroy(&puffer_output);
+	#else
+		pthread_cond_destroy(&cond_c);
+		pthread_cond_destroy(&cond_p);
+	#endif
 
-	pthread_mutex_destroy(&haupt_mutex);
 	pthread_mutex_destroy(&consumer_1_m);
 	pthread_mutex_destroy(&consumer_2_m);
+	pthread_mutex_destroy(&haupt_mutex);
 
 	printf("\nDas program wurde beendet");
 	fflush(stdout);

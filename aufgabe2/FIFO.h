@@ -11,6 +11,7 @@
 void FIFO_push(char);
 char FIFO_pop(void);
 void FIFO_init(void);
+int FIFO_getLength(void);
 
 #endif /* FIFO_H_ */
 

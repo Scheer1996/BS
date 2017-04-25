@@ -10,6 +10,7 @@
 static char puffer[10];
 static int pufferPushZeiger;
 static int pufferPopZeiger;
+static int length;
 
 void FIFO_init(void){
 	int i;
@@ -18,6 +19,7 @@ void FIFO_init(void){
 		}
 	pufferPushZeiger = 0;
 	pufferPopZeiger = 0;
+	length = 0;
 }
 
 void FIFO_push(char neuerChar){
@@ -26,6 +28,7 @@ void FIFO_push(char neuerChar){
 	if(pufferPushZeiger == 10){
 		pufferPushZeiger = 0;
 	}
+	length++;
 }
 
 char FIFO_pop(void){
@@ -35,5 +38,10 @@ char FIFO_pop(void){
 		if(pufferPopZeiger == 10){
 			pufferPopZeiger = 0;
 		}
+	length--;
 	return popChar;
+}
+
+int FIFO_getLength(void){
+	return length;
 }
