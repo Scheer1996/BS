@@ -1,11 +1,15 @@
-/*
- * main.c
- *
- *  Created on: Apr 16, 2017
- *      Author: Stefan
+/** ****************************************************************
+ * @file    aufgabe2/main.c
+ * @author  Stefan Belic (Stefan.Belic@haw-hamburg.de)
+ * @author  Philip Scheer (Philip.Scheer@haw-hamburg.de)
+ * @version 1.0
+ * @date    26.04.2017
+ * @brief   Producer - Consumer System
+ * Synchronisation und Thread Generierung mit
+ * 1. Mutex und Semaphore
+ * 2. Mutex und Conditional Variable
+ ******************************************************************
  */
-
-
 #include<stdio.h>
 #include<pthread.h>
 #include<semaphore.h>
@@ -131,6 +135,13 @@ void *control_f(void *a){
 		scanf("%c",&var);
 		switch(var){
 			case 'q':return NULL;break;
+			case 'h':
+				printf("Mögliche Eingaben:\n");
+				printf("-1: Starte / Stoppe Producer_1\n");
+				printf("-2: Starte / Stoppe Producer_2\n");
+				printf("-c/C: Starte / Stoppe Consumer\n");
+				printf("-q/Q: Programm beenden\n");
+				;break;
 			case '1':if(consumer_1_isBlocked==1){pthread_mutex_unlock(&consumer_1_m); consumer_1_isBlocked = 0;}
 					else{pthread_mutex_lock(&consumer_1_m);consumer_1_isBlocked=1;}
 					break;

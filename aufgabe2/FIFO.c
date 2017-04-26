@@ -1,8 +1,11 @@
-/*
- * FIFO.c
- *
- *  Created on: Apr 16, 2017
- *      Author: Stefan
+/** ****************************************************************
+ * @file    aufgabe2/fifo.c
+ * @author  Stefan Belic (Stefan.Belic@haw-hamburg.de)
+ * @author  Philip Scheer (Philip.Scheer@haw-hamburg.de)
+ * @version 1.0
+ * @date    26.04.2017
+ * @brief   FIFO Buffer
+ ******************************************************************
  */
 
 #include "FIFO.h"
