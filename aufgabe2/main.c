@@ -20,16 +20,16 @@
 #include "FIFO.h"
 
 
-//Die lange des string mit dem buchstaben
+//Die laenge des string mit dem buchstaben
 #define STRING_LAENGE 26
 
-//Der mutex der sich um denn puffer kummert
+//Der mutex der fuer den FIFO Puffer
 static pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-//Der mutex der denn consumer 1 blockt
-pthread_mutex_t consumer_1_m = PTHREAD_MUTEX_INITIALIZER;
-//Der mutex der denn consumer 2 blockt
-pthread_mutex_t consumer_2_m = PTHREAD_MUTEX_INITIALIZER;
+//Der mutex der denn producer 1 blockt
+pthread_mutex_t producer_1_m = PTHREAD_MUTEX_INITIALIZER;
+//Der mutex der denn producer 2 blockt
+pthread_mutex_t producer_2_m = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef SEMAPHORE
 //Der semaphor fuer einfugen in den puffer
@@ -38,24 +38,27 @@ sem_t puffer_input;
 sem_t puffer_output;
 
 #else
-//Die conditional variable fuer eingugen in den puffer
+//Die conditional variable fuer einfuegen in den puffer
 pthread_cond_t cond_p = PTHREAD_COND_INITIALIZER;
 //Die conditional variable fuer rausnehmen aus den puffer
 pthread_cond_t cond_c = PTHREAD_COND_INITIALIZER;
 
 #endif
 
+/**
+ * Schreibt alle 3 Sekunden einen String in den FIFO Puffer
+ */
 void producerFunction(char*string,pthread_mutex_t* consumer_m){
 
-	int charZeiger = 0;//Momentane position im string
+	int charZeiger = 0;// Momentane position im string
 
 		while(1){
-			pthread_mutex_lock(consumer_m);//check ob der producer 1 geblockt ist
+			pthread_mutex_lock(consumer_m);// check ob der producer geblockt ist
 			pthread_mutex_unlock(consumer_m);
 			sleep(3);
 
 				#ifdef SEMAPHORE
-					sem_wait(&puffer_input);//check ob der puffer frei ist
+					sem_wait(&puffer_input);// check ob der puffer frei ist
 
 					pthread_mutex_lock(&haupt_mutex);
 					FIFO_push(string[charZeiger]);
@@ -66,7 +69,7 @@ void producerFunction(char*string,pthread_mutex_t* consumer_m){
 				#else
 					//Critical section anfang
 					pthread_mutex_lock(&haupt_mutex);
-					while(FIFO_getLength() == 10) pthread_cond_wait(&cond_p,&haupt_mutex);//Condition variable
+					while(FIFO_getLength() == 10) pthread_cond_wait(&cond_p,&haupt_mutex); //Condition variable
 					FIFO_push(string[charZeiger]);
 					pthread_mutex_unlock(&haupt_mutex);
 					//Critical section ende
@@ -75,7 +78,7 @@ void producerFunction(char*string,pthread_mutex_t* consumer_m){
 
 				#endif
 
-				charZeiger++;//Geht zur nachste position im string
+				charZeiger++;// Geht zur naechste position im String
 				if(charZeiger==STRING_LAENGE){
 					charZeiger=0;
 				}
@@ -83,25 +86,31 @@ void producerFunction(char*string,pthread_mutex_t* consumer_m){
 
 }
 
+/**
+ * Schreibt alle 3 Sekunden ein kleinbuchstaben des Alphabets in den Puffer
+ */
 void *producer_1_f(void *a){
 	char* string = "abcdefghijklmnopqrstuvwxyz";//Der string
-	producerFunction(string,&consumer_1_m);
+	producerFunction(string,&producer_1_m);
 	return NULL;
 }
-//Das selbe wie producer 1
+
+/**
+ * Schreibt alle 3 Sekunden einen großbuchstaben des Alphabets in den Puffer
+ */
 void *producer_2_f(void *a){
 	char* string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	producerFunction(string,&consumer_2_m);
+	producerFunction(string,&producer_2_m);
 	return NULL;
 }
 
 void *consumer_f(void *a){
-	char var;//Variable wo man denn puffer element nimt wo man am nachsten schreiben will
+	char var;// Variable die man als naechstes aus dem Puffer holen will
 
 	while(1){
 				sleep(2);
 					#ifdef SEMAPHORE
-						sem_wait(&puffer_output);;//check ob der puffer frei ist
+						sem_wait(&puffer_output);;//check ob der puffer leer ist
 
 						pthread_mutex_lock(&haupt_mutex);
 						var = FIFO_pop();
@@ -109,12 +118,12 @@ void *consumer_f(void *a){
 
 						sem_post(&puffer_input);
 					#else
-						//Critical section anfang
+						// Critical section anfang
 						pthread_mutex_lock(&haupt_mutex);
 						while(FIFO_getLength() == 0) pthread_cond_wait(&cond_c,&haupt_mutex);
 						var = FIFO_pop();
 						pthread_mutex_unlock(&haupt_mutex);
-						//Critical section ende
+						// Critical section ende
 						pthread_cond_signal(&cond_p);
 
 					#endif
@@ -130,11 +139,12 @@ void *control_f(void *a){
 	int running = 1;
 	int consumer_1_isBlocked = 0;
 	int consumer_2_isBlocked = 0;
+	int haupt_mutex_isBlocked = 0;
 
 	while(running == 1){
 		scanf("%c",&var);
 		switch(var){
-			case 'q':return NULL;break;
+			case 'q': case 'Q': return NULL;break;
 			case 'h':
 				printf("Mögliche Eingaben:\n");
 				printf("-1: Starte / Stoppe Producer_1\n");
@@ -142,12 +152,32 @@ void *control_f(void *a){
 				printf("-c/C: Starte / Stoppe Consumer\n");
 				printf("-q/Q: Programm beenden\n");
 				;break;
-			case '1':if(consumer_1_isBlocked==1){pthread_mutex_unlock(&consumer_1_m); consumer_1_isBlocked = 0;}
-					else{pthread_mutex_lock(&consumer_1_m);consumer_1_isBlocked=1;}
-					break;
-			case '2':if(consumer_2_isBlocked==1){pthread_mutex_unlock(&consumer_2_m); consumer_2_isBlocked = 0;}
-						else{pthread_mutex_lock(&consumer_2_m);consumer_2_isBlocked=1;}
-						break;
+			case '1': // Starte / Stoppe Producer_1
+				if(consumer_1_isBlocked==1) {
+					pthread_mutex_unlock(&producer_1_m);
+					consumer_1_isBlocked = 0;
+				} else {
+					pthread_mutex_lock(&producer_1_m);
+					consumer_1_isBlocked = 1;
+				}
+				break;
+			case '2': // Starte / Stoppe Producer_2
+				if(consumer_2_isBlocked==1) {
+					pthread_mutex_unlock(&producer_2_m);
+					consumer_2_isBlocked = 0;
+				} else {
+					pthread_mutex_lock(&producer_2_m);
+					consumer_2_isBlocked = 1;
+				}
+				break;
+			case 'c': case 'C': // Starte / Stoppe Consumer
+				if(haupt_mutex_isBlocked==1) {
+					pthread_mutex_unlock(&haupt_mutex);
+					haupt_mutex_isBlocked = 0;
+				} else {
+					pthread_mutex_lock(&haupt_mutex);
+					haupt_mutex_isBlocked = 1;
+				}
 		}
 	}
 	return NULL;
@@ -159,6 +189,8 @@ int main(){
 	FIFO_init();
 
 	#ifdef SEMAPHORE
+		//sem_open(&puffer_input, 0, 10);
+		//sem_open(&puffer_output, 0, 0);
 		sem_init(&puffer_input, 0, 10);
 		sem_init(&puffer_output, 0, 0);
 	#endif
@@ -168,7 +200,7 @@ int main(){
 	pthread_t consumer_t;
 	pthread_t control_t;
 
-	//Startet alle threads
+	// Startet alle Threads
 	if(pthread_create(&producer_1_t,NULL,producer_1_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
 		return -1;
@@ -216,8 +248,8 @@ int main(){
 		pthread_cond_destroy(&cond_p);
 	#endif
 
-	pthread_mutex_destroy(&consumer_1_m);
-	pthread_mutex_destroy(&consumer_2_m);
+	pthread_mutex_destroy(&producer_1_m);
+	pthread_mutex_destroy(&producer_2_m);
 	pthread_mutex_destroy(&haupt_mutex);
 
 	printf("\nDas program wurde beendet");
