@@ -10,14 +10,14 @@
 
 #include "FIFO.h"
 
-static char puffer[10];
+static char puffer[PUFFER_SIZE];
 static int pufferPushZeiger;
 static int pufferPopZeiger;
 static int length;
 
 void FIFO_init(void){
 	int i;
-	for(i = 0; i < 10; i++){
+	for(i = 0; i < PUFFER_SIZE; i++){
 			puffer[i] = '_';
 		}
 	pufferPushZeiger = 0;
@@ -28,7 +28,7 @@ void FIFO_init(void){
 void FIFO_push(char neuerChar){
 	puffer[pufferPushZeiger] = neuerChar;
 	pufferPushZeiger++;
-	if(pufferPushZeiger == 10){
+	if(pufferPushZeiger == PUFFER_SIZE){
 		pufferPushZeiger = 0;
 	}
 	length++;
@@ -38,7 +38,7 @@ char FIFO_pop(void){
 	char popChar = puffer[pufferPopZeiger];
 	puffer[pufferPopZeiger]='_';
 	pufferPopZeiger++;
-		if(pufferPopZeiger == 10){
+		if(pufferPopZeiger == PUFFER_SIZE){
 			pufferPopZeiger = 0;
 		}
 	length--;

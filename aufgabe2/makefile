@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -std=c99 -g -mno-ms-bitfields 
-LDFLAGS = -g -pthread
+CFLAGS = -std=c99 -g -mno-ms-bitfields -pthread
+LDFLAGS = -g
 
 SRC = main.c FIFO.c
 OBJ = $(SRC:%.c=%.o)

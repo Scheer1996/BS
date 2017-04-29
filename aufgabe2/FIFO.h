@@ -10,6 +10,8 @@
 #ifndef FIFO_H_
 #define FIFO_H_
 
+#define PUFFER_SIZE 10
+
 void FIFO_push(char);
 char FIFO_pop(void);
 void FIFO_init(void);
