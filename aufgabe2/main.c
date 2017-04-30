@@ -27,9 +27,13 @@
 static pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //Der mutex der denn producer 1 blockt
-pthread_mutex_t producer_1_m = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t producer_1_m = PTHREAD_MUTEX_INITIALIZER;
 //Der mutex der denn producer 2 blockt
-pthread_mutex_t producer_2_m = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t producer_2_m = PTHREAD_MUTEX_INITIALIZER;
+
+static int producer_1_isRunning;
+static int producer_2_isRunning;
+static int consumer_isRunning;
 
 #ifdef SEMAPHORE
 //Der semaphor fuer einfugen in den puffer
@@ -48,11 +52,11 @@ pthread_cond_t cond_c = PTHREAD_COND_INITIALIZER;
 /**
  * Schreibt alle 3 Sekunden einen String in den FIFO Puffer
  */
-void producerFunction(char*string, pthread_mutex_t* producer_m){
+void producerFunction(char*string, pthread_mutex_t* producer_m,int *producer_isRunning){
 
 	int charZeiger = 0;// Momentane position im string
 
-		while(1){
+		while(*producer_isRunning){
 			pthread_mutex_lock(producer_m);// check ob der producer geblockt ist
 			pthread_mutex_unlock(producer_m);
 			sleep(3);
@@ -91,7 +95,7 @@ void producerFunction(char*string, pthread_mutex_t* producer_m){
  */
 void *producer_1_f(void *a){
 	char* string = "abcdefghijklmnopqrstuvwxyz";//Der string
-	producerFunction(string,&producer_1_m);
+	producerFunction(string,&producer_1_m,&producer_1_isRunning);
 	return NULL;
 }
 
@@ -100,14 +104,14 @@ void *producer_1_f(void *a){
  */
 void *producer_2_f(void *a){
 	char* string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	producerFunction(string,&producer_2_m);
+	producerFunction(string,&producer_2_m,&producer_2_isRunning);
 	return NULL;
 }
 
 void *consumer_f(void *a){
 	char var;// Variable die man als naechstes aus dem Puffer holen will
 
-	while(1){
+	while(consumer_isRunning){
 				sleep(2);
 					#ifdef SEMAPHORE
 						sem_wait(&puffer_output);;//check ob der puffer leer ist
@@ -137,7 +141,6 @@ void *consumer_f(void *a){
 void *control_f(void *a){
 	char var;
 	int running = 1;
-	int res;
 	int producer_1_isBlocked = 0;
 	int producer_2_isBlocked = 0;
 	int haupt_mutex_isBlocked = 0;
@@ -145,7 +148,21 @@ void *control_f(void *a){
 	while(running == 1){
 		scanf("%c",&var);
 		switch(var){
-			case 'q': case 'Q': return NULL;break;
+			case 'q': case 'Q':
+				if(producer_1_isBlocked){
+					pthread_mutex_unlock(&producer_1_m);
+				}
+				producer_1_isRunning = 0;
+				if(producer_2_isBlocked){
+					pthread_mutex_unlock(&producer_2_m);
+				}
+				producer_2_isRunning = 0;
+				if(haupt_mutex_isBlocked){
+					pthread_mutex_unlock(&producer_2_m);
+				}
+				consumer_isRunning = 0;
+				return NULL;
+				break;
 			case 'h':
 				printf("Mögliche Eingaben:\n");
 				printf("-1: Starte / Stoppe Producer_1\n");
@@ -191,6 +208,10 @@ int main(){
 	fflush(stdout);
 	FIFO_init();
 
+	producer_1_isRunning = 1;
+	producer_2_isRunning = 1;
+	consumer_isRunning = 1;
+
 	#ifdef SEMAPHORE
 		sem_init(&puffer_input, 0, PUFFER_SIZE);
 		sem_init(&puffer_output, 0, 0);
@@ -204,21 +225,25 @@ int main(){
 	// Startet alle Threads
 	if(pthread_create(&producer_1_t,NULL,producer_1_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
+		fflush(stdout);
 		return -1;
 	}
 	if(pthread_create(&producer_2_t,NULL,producer_2_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
+		fflush(stdout);
 		pthread_cancel(producer_1_t);
 		return -1;
 	}
 	if(pthread_create(&consumer_t,NULL,consumer_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
+		fflush(stdout);
 		pthread_cancel(producer_1_t);
 		pthread_cancel(producer_2_t);
 		return -1;
 	}
 	if(pthread_create(&control_t,NULL,control_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
+		fflush(stdout);
 		pthread_cancel(producer_1_t);
 		pthread_cancel(producer_2_t);
 		pthread_cancel(consumer_t);
@@ -228,7 +253,8 @@ int main(){
 
 	//Joint alle threads
 	if(pthread_join(control_t, NULL)) {
-			printf("Fehler beim joinen des threads");
+			printf("Fehler beim joinen des control threads");
+			fflush(stdout);
 			pthread_cancel(producer_1_t);
 			pthread_cancel(producer_2_t);
 			pthread_cancel(consumer_t);
@@ -237,9 +263,24 @@ int main(){
 		}
 
 	//Beendet das programm
-	pthread_cancel(producer_1_t);
-	pthread_cancel(producer_2_t);
-	pthread_cancel(consumer_t);
+	if(pthread_join(producer_1_t,NULL)){
+		printf("Fehler beim joinen des producer_1 threads");
+		fflush(stdout);
+		pthread_cancel(producer_2_t);
+		pthread_cancel(consumer_t);
+		return -1;
+	}
+	if(pthread_join(producer_2_t,NULL)){
+		printf("Fehler beim joinen des producer_2 threads");
+		fflush(stdout);
+		pthread_cancel(consumer_t);
+		return -1;
+	}
+	if(pthread_join(consumer_t,NULL)){
+		printf("Fehler beim joinen des consumer threads");
+		fflush(stdout);
+		return -1;
+	}
 
 	#ifdef SEMAPHORE
 		sem_destroy(&puffer_input);
