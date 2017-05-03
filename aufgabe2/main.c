@@ -15,7 +15,7 @@
 #include<semaphore.h>
 #include<unistd.h>
 
-#define SEMAPHORE 1
+//#define SEMAPHORE 1
 
 #include "FIFO.h"
 
@@ -30,6 +30,8 @@ static pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t producer_1_m = PTHREAD_MUTEX_INITIALIZER;
 //Der mutex der denn producer 2 blockt
 static pthread_mutex_t producer_2_m = PTHREAD_MUTEX_INITIALIZER;
+//Der mutex der denn consumer stopt
+static pthread_mutex_t consumer_m = PTHREAD_MUTEX_INITIALIZER;
 
 static int producer_1_isRunning;
 static int producer_2_isRunning;
@@ -113,8 +115,10 @@ void *consumer_f(void *a){
 
 	while(consumer_isRunning){
 				sleep(2);
+				pthread_mutex_lock(&consumer_m);// check ob der producer geblockt ist
+				pthread_mutex_unlock(&consumer_m);
 					#ifdef SEMAPHORE
-						sem_wait(&puffer_output);;//check ob der puffer leer ist
+						sem_wait(&puffer_output);//check ob der puffer leer ist
 
 						pthread_mutex_lock(&haupt_mutex);
 						var = FIFO_pop();
@@ -143,24 +147,30 @@ void *control_f(void *a){
 	int running = 1;
 	int producer_1_isBlocked = 0;
 	int producer_2_isBlocked = 0;
-	int haupt_mutex_isBlocked = 0;
+	int consumer_mutex_isBlocked = 0;
 
 	while(running == 1){
 		scanf("%c",&var);
 		switch(var){
 			case 'q': case 'Q':
+				consumer_isRunning = 0;
+				if(consumer_mutex_isBlocked){
+					pthread_mutex_unlock(&consumer_m);
+				}
+				//pthread_cond_signal(&cond_c);
+
+				producer_1_isRunning = 0;
 				if(producer_1_isBlocked){
 					pthread_mutex_unlock(&producer_1_m);
 				}
-				producer_1_isRunning = 0;
+				//pthread_cond_signal(&cond_p);
+
+				producer_2_isRunning = 0;
 				if(producer_2_isBlocked){
 					pthread_mutex_unlock(&producer_2_m);
 				}
-				producer_2_isRunning = 0;
-				if(haupt_mutex_isBlocked){
-					pthread_mutex_unlock(&producer_2_m);
-				}
-				consumer_isRunning = 0;
+				//pthread_cond_signal(&cond_p);
+
 				return NULL;
 				break;
 			case 'h':
@@ -189,12 +199,12 @@ void *control_f(void *a){
 				}
 				break;
 			case 'c': case 'C': // Starte / Stoppe Consumer
-				if(haupt_mutex_isBlocked==1) {
-					pthread_mutex_unlock(&haupt_mutex);
-					haupt_mutex_isBlocked = 0;
+				if(consumer_mutex_isBlocked==1) {
+					pthread_mutex_unlock(&consumer_m);
+					consumer_mutex_isBlocked = 0;
 				} else {
-					pthread_mutex_lock(&haupt_mutex);
-					haupt_mutex_isBlocked = 1;
+					pthread_mutex_lock(&consumer_m);
+					consumer_mutex_isBlocked = 1;
 				}
 		}
 
@@ -262,7 +272,16 @@ int main(){
 			return -1;
 		}
 
-	//Beendet das programm
+	pthread_cancel(consumer_t);
+	if(pthread_join(consumer_t,NULL)){
+		printf("Fehler beim joinen des consumer threads");
+		fflush(stdout);
+		return -1;
+	}
+	printf("\nConsumer thread exited");
+	fflush(stdout);
+
+	pthread_cancel(producer_1_t);
 	if(pthread_join(producer_1_t,NULL)){
 		printf("Fehler beim joinen des producer_1 threads");
 		fflush(stdout);
@@ -270,17 +289,18 @@ int main(){
 		pthread_cancel(consumer_t);
 		return -1;
 	}
+	printf("\nProducer 1 thread exited");
+	fflush(stdout);
+
+	pthread_cancel(producer_2_t);
 	if(pthread_join(producer_2_t,NULL)){
 		printf("Fehler beim joinen des producer_2 threads");
 		fflush(stdout);
 		pthread_cancel(consumer_t);
 		return -1;
 	}
-	if(pthread_join(consumer_t,NULL)){
-		printf("Fehler beim joinen des consumer threads");
-		fflush(stdout);
-		return -1;
-	}
+	printf("\nProducer 2 thread exited");
+	fflush(stdout);
 
 	#ifdef SEMAPHORE
 		sem_destroy(&puffer_input);
@@ -292,6 +312,7 @@ int main(){
 
 	pthread_mutex_destroy(&producer_1_m);
 	pthread_mutex_destroy(&producer_2_m);
+	pthread_mutex_destroy(&consumer_m);
 	pthread_mutex_destroy(&haupt_mutex);
 
 	printf("\nDas program wurde beendet");
