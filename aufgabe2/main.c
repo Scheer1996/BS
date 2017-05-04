@@ -22,6 +22,8 @@
 
 //Die laenge des string mit dem buchstaben
 #define STRING_LAENGE 26
+#define SLEEP_CONSUMER 2
+#define SLEEP_PRODUCER 3
 
 //Der mutex der fuer den FIFO Puffer
 static pthread_mutex_t haupt_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -61,7 +63,7 @@ void producerFunction(char*string, pthread_mutex_t* producer_m,int *producer_isR
 		while(*producer_isRunning){
 			pthread_mutex_lock(producer_m);// check ob der producer geblockt ist
 			pthread_mutex_unlock(producer_m);
-			sleep(3);
+			sleep(SLEEP_PRODUCER);
 
 				#ifdef SEMAPHORE
 					sem_wait(&puffer_input);// check ob der puffer frei ist
@@ -114,7 +116,7 @@ void *consumer_f(void *a){
 	char var;// Variable die man als naechstes aus dem Puffer holen will
 
 	while(consumer_isRunning){
-				sleep(2);
+				sleep(SLEEP_CONSUMER);
 				pthread_mutex_lock(&consumer_m);// check ob der producer geblockt ist
 				pthread_mutex_unlock(&consumer_m);
 					#ifdef SEMAPHORE
