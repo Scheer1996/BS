@@ -13,10 +13,8 @@
 #include<stdio.h>
 #include<pthread.h>
 #include<semaphore.h>
-#include<unistd.h>
 
-//#define SEMAPHORE 1
-
+#define SEMAPHORE 1
 #include "FIFO.h"
 
 
@@ -56,33 +54,44 @@ pthread_cond_t cond_c = PTHREAD_COND_INITIALIZER;
 /**
  * Schreibt alle 3 Sekunden einen String in den FIFO Puffer
  */
+
+void cleanUpMutex(void *arg){
+  pthread_mutex_unlock(&haupt_mutex);
+}
+
+
 void producerFunction(char*string, pthread_mutex_t* producer_m,int *producer_isRunning){
 
 	int charZeiger = 0;// Momentane position im string
 
+	
 		while(*producer_isRunning){
 			pthread_mutex_lock(producer_m);// check ob der producer geblockt ist
 			pthread_mutex_unlock(producer_m);
 			sleep(SLEEP_PRODUCER);
-
 				#ifdef SEMAPHORE
 					sem_wait(&puffer_input);// check ob der puffer frei ist
-
+					pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,NULL);
+					
 					pthread_mutex_lock(&haupt_mutex);
 					FIFO_push(string[charZeiger]);
 					pthread_mutex_unlock(&haupt_mutex);
-
+					
+					pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,NULL);
 					sem_post(&puffer_output);
 
 				#else
+					pthread_cleanup_push(cleanUpMutex,NULL);
 					//Critical section anfang
 					pthread_mutex_lock(&haupt_mutex);
+			
 					while(FIFO_getLength() == PUFFER_SIZE) pthread_cond_wait(&cond_p,&haupt_mutex); //Condition variable
 					FIFO_push(string[charZeiger]);
 					pthread_mutex_unlock(&haupt_mutex);
 					//Critical section ende
-
+					
 					pthread_cond_signal(&cond_c);
+					pthread_cleanup_pop(0);
 
 				#endif
 
@@ -99,6 +108,9 @@ void producerFunction(char*string, pthread_mutex_t* producer_m,int *producer_isR
  */
 void *producer_1_f(void *a){
 	char* string = "abcdefghijklmnopqrstuvwxyz";//Der string
+#ifdef SEMAPHORE
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
+#endif
 	producerFunction(string,&producer_1_m,&producer_1_isRunning);
 	return NULL;
 }
@@ -108,15 +120,19 @@ void *producer_1_f(void *a){
  */
 void *producer_2_f(void *a){
 	char* string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	#ifdef SEMAPHORE
+	  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
+	#endif
 	producerFunction(string,&producer_2_m,&producer_2_isRunning);
 	return NULL;
 }
 
 void *consumer_f(void *a){
 	char var;// Variable die man als naechstes aus dem Puffer holen will
-
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
 	while(consumer_isRunning){
 				sleep(SLEEP_CONSUMER);
+				pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,NULL);
 				pthread_mutex_lock(&consumer_m);// check ob der producer geblockt ist
 				pthread_mutex_unlock(&consumer_m);
 					#ifdef SEMAPHORE
@@ -125,20 +141,23 @@ void *consumer_f(void *a){
 						pthread_mutex_lock(&haupt_mutex);
 						var = FIFO_pop();
 						pthread_mutex_unlock(&haupt_mutex);
-
+						pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,NULL);
 						sem_post(&puffer_input);
 					#else
 						// Critical section anfang
+						pthread_cleanup_push(cleanUpMutex,NULL);
 						pthread_mutex_lock(&haupt_mutex);
 						while(FIFO_getLength() == 0) pthread_cond_wait(&cond_c,&haupt_mutex);
 						var = FIFO_pop();
 						pthread_mutex_unlock(&haupt_mutex);
+						pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,NULL);
 						// Critical section ende
 						pthread_cond_signal(&cond_p);
+						pthread_cleanup_pop(0);
 
 					#endif
-					printf("%c",var);
-					fflush(stdout);
+					//printf("%c",var);
+					//fflush(stdout);
 
 			}
 	return NULL;
@@ -160,6 +179,7 @@ void *control_f(void *a){
 					pthread_mutex_unlock(&consumer_m);
 				}
 				//pthread_cond_signal(&cond_c);
+				
 
 				producer_1_isRunning = 0;
 				if(producer_1_isBlocked){
@@ -240,12 +260,14 @@ int main(){
 		fflush(stdout);
 		return -1;
 	}
+	
 	if(pthread_create(&producer_2_t,NULL,producer_2_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
 		fflush(stdout);
 		pthread_cancel(producer_1_t);
 		return -1;
 	}
+	
 	if(pthread_create(&consumer_t,NULL,consumer_f,NULL)){
 		printf("Fehler thread koente nicht gestartet werden");
 		fflush(stdout);
@@ -274,16 +296,24 @@ int main(){
 			return -1;
 		}
 
-	pthread_cancel(consumer_t);
+	if(pthread_cancel(consumer_t) != 0){
+	  printf("Fehler beim canceln von consumer)");
+	  fflush(stdout);
+	  return -1;
+	}
 	if(pthread_join(consumer_t,NULL)){
 		printf("Fehler beim joinen des consumer threads");
 		fflush(stdout);
 		return -1;
 	}
-	printf("\nConsumer thread exited");
+	printf("Consumer thread exited\n");
 	fflush(stdout);
 
-	pthread_cancel(producer_1_t);
+	if(pthread_cancel(producer_1_t) != 0){
+	  printf("Fehler beim canceln von producer 1)");
+	  fflush(stdout);
+	  return -1;
+	}
 	if(pthread_join(producer_1_t,NULL)){
 		printf("Fehler beim joinen des producer_1 threads");
 		fflush(stdout);
@@ -291,17 +321,21 @@ int main(){
 		pthread_cancel(consumer_t);
 		return -1;
 	}
-	printf("\nProducer 1 thread exited");
+	printf("Producer 1 thread exited\n");
 	fflush(stdout);
 
-	pthread_cancel(producer_2_t);
+	if(pthread_cancel(producer_2_t) != 0){
+	  printf("Fehler beim canceln von producer 2)");
+	  fflush(stdout);
+	  return -1;
+	}
 	if(pthread_join(producer_2_t,NULL)){
 		printf("Fehler beim joinen des producer_2 threads");
 		fflush(stdout);
 		pthread_cancel(consumer_t);
 		return -1;
 	}
-	printf("\nProducer 2 thread exited");
+	printf("Producer 2 thread exited\n");
 	fflush(stdout);
 
 	#ifdef SEMAPHORE
