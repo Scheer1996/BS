@@ -9,6 +9,7 @@
  */
 
 #include "FIFO.h"
+#include<stdio.h>
 
 static char puffer[PUFFER_SIZE];
 static int pufferPushZeiger;
@@ -27,6 +28,8 @@ void FIFO_init(void){
 
 void FIFO_push(char neuerChar){
 	puffer[pufferPushZeiger] = neuerChar;
+	printf("%c wurde eingefugt\n",neuerChar);
+	fflush(stdout);
 	pufferPushZeiger++;
 	if(pufferPushZeiger == PUFFER_SIZE){
 		pufferPushZeiger = 0;
@@ -36,6 +39,8 @@ void FIFO_push(char neuerChar){
 
 char FIFO_pop(void){
 	char popChar = puffer[pufferPopZeiger];
+	printf("%c wurde entommen\n",popChar);
+	fflush(stdout);
 	puffer[pufferPopZeiger]='_';
 	pufferPopZeiger++;
 		if(pufferPopZeiger == PUFFER_SIZE){

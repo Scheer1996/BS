@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -std=c99 -g -mno-ms-bitfields -pthread
-LDFLAGS = -g
+CFLAGS = -g -mno-ms-bitfields 
+LDFLAGS = -g -pthread
 
 SRC = main.c FIFO.c
 OBJ = $(SRC:%.c=%.o)
@@ -14,4 +14,6 @@ aufgabe2: $(OBJ)
 deps:
 	$(CC) -MM $(SRC) > makefile.dependencies
 
+clean:
+	rm *.o aufgabe2
 include makefile.dependencies
