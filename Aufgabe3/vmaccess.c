@@ -85,10 +85,6 @@ int vmem_read(int address) {
 		vmem_init();
 	}
 	
-	vmem->adm.g_count++;
-	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
-		update_age_reset_ref();
-	}
 	
 	int pageNumber = address / VMEM_PAGESIZE;//Get the page number from the address
 	int offset = address % VMEM_PAGESIZE;//Get offset inside page of address
@@ -101,7 +97,11 @@ int vmem_read(int address) {
 	}
 	
 	vmem->pt.entries[pageNumber].flags |= PTF_REF;//Reference the page
-	
+
+	vmem->adm.g_count++;
+	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
+		update_age_reset_ref();
+	}
 	//Read data from memory
 	return vmem->data[frame*VMEM_PAGESIZE + offset];
 }
@@ -109,11 +109,6 @@ int vmem_read(int address) {
 void vmem_write(int address, int data) {
 	if(vmem == NULL){
 		vmem_init();
-	}
-	
-	vmem->adm.g_count++;
-	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
-		update_age_reset_ref();
 	}
 	
 	int pageNumber = address / VMEM_PAGESIZE;
@@ -127,6 +122,12 @@ void vmem_write(int address, int data) {
 	
 	vmem->pt.entries[pageNumber].flags |= PTF_DIRTY; //Set it to dirty so its writen into disk
 	vmem->pt.entries[pageNumber].flags |= PTF_REF; //Reference the page
+
+	vmem->adm.g_count++;
+	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
+		update_age_reset_ref();
+	}
+
 	vmem->data[frame*VMEM_PAGESIZE + offset] = data;
 }
 
