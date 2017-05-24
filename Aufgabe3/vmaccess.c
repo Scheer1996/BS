@@ -53,8 +53,9 @@ static void update_age_reset_ref(void) {
 		for(i = 0; i < VMEM_NFRAMES; i++){
 			page = vmem->pt.framepage[i];
 			if(page != VOID_IDX){
-				unsigned char referenceBit = vmem->pt.entries[page].flags&PTF_PRESENT;
-				vmem->pt.entries[page].age =  (vmem->pt.entries[page].age>>1)|(referenceBit<<7);
+				unsigned char referenceBit = vmem->pt.entries[page].flags&PTF_REF;
+				vmem->pt.entries[page].flags &= 3;
+				vmem->pt.entries[page].age =  (vmem->pt.entries[page].age>>1)|(referenceBit<<5);
 			}
 		}
 	}
@@ -102,6 +103,7 @@ int vmem_read(int address) {
 	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
 		update_age_reset_ref();
 	}
+	
 	//Read data from memory
 	return vmem->data[frame*VMEM_PAGESIZE + offset];
 }

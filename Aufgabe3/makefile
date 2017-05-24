@@ -7,7 +7,7 @@ all: mmanage vmappl
 mmanage: mmanage.o logger.o pagefile.o
 	gcc -DVMEM_PAGESIZE=$(VMEM_PAGESIZE) -o mmanage mmanage.o logger.o pagefile.o -pthread
 vmappl: vmappl.o vmaccess.o 
-	gcc -o vmappl vmappl.o vmaccess.o -pthread
+	gcc -DVMEM_PAGESIZE=$(VMEM_PAGESIZE) -o vmappl vmappl.o vmaccess.o -pthread
 mmanage.o:mmanage.h mmanage.c logger.h pagefile.h debug.h
 	gcc -c mmanage.c
 logger.o: logger.h logger.c

@@ -368,6 +368,10 @@ void store_page(int pt_idx) {
 void update_pt(int frame) {
 	vmem->pt.entries[vmem->adm.req_pageno].frame = frame;//Sets the page frame where it will be loaded
 	vmem->pt.entries[vmem->adm.req_pageno].flags |= PTF_PRESENT;//Sets its flag to present
+	
+	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
+		vmem->pt.entries[vmem->adm.req_pageno].age = 0x80;
+	}
 }
 
 int find_remove_frame(void) {
@@ -379,7 +383,7 @@ int find_remove_frame(void) {
 		case VMEM_ALGO_CLOCK: frameToReplace = find_remove_clock();break;
 	}
 	int pageToSave = vmem->pt.framepage[frameToReplace];//The page that will be backedup to harddisk and loaded out of memory
-	replacedPageNumber = pageToSave;//THis has to be removed used for testing
+	replacedPageNumber = pageToSave;//This has to be removed used for testing
 	
 	//If it was written to read out of memory
 	if((vmem->pt.entries[pageToSave].flags&PTF_DIRTY) == PTF_DIRTY){
@@ -409,10 +413,9 @@ int find_remove_aging(void) {
 	do{
 		frameToReplace++;
 		counter = vmem->pt.entries[vmem->pt.framepage[frameToReplace]].age;
-	}while(counter == VOID_IDX);
+	}while(vmem->pt.framepage[frameToReplace] == VOID_IDX);
 	
 	int i;
-	
 	for(i = frameToReplace; i < VMEM_NFRAMES; i++){
 		if(vmem->pt.framepage[i] != VOID_IDX && counter >= vmem->pt.entries[vmem->pt.framepage[i]].age){
 			frameToReplace = i;
@@ -420,9 +423,7 @@ int find_remove_aging(void) {
 		}
 	}
 	
-	if(vmem->pt.framepage[frameToReplace] != VOID_IDX) {
-		vmem->pt.entries[vmem->pt.framepage[frameToReplace]].age = 0x80;
-	}
+	vmem->pt.entries[vmem->pt.framepage[frameToReplace]].age = 0;
 
 	return frameToReplace;
 }
