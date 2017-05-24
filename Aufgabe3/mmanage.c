@@ -335,6 +335,8 @@ void allocate_page(void) {
 	if(freePageIndex != VOID_IDX){
 		update_pt(freePageIndex);//Updates the page data that had to be moved to memory
 		fetch_page(vmem->adm.req_pageno);//Fetches the page onto memory
+		selectedFrame = freePageIndex;
+		replacedPageNumber = -1;
 	}
 	//Else remove a page from a chossen frame and load the to be loaded page into the frame
 	else{
