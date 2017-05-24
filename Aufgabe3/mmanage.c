@@ -442,7 +442,9 @@ int find_remove_clock(void) {
 
 void cleanup(void) {
 	
-	int sem_status = sem_destroy(local_sem);
+	//int sem_status = sem_destroy(local_sem);
+	int sem_status = sem_close(local_sem);
+	sem_status = sem_unlink(NAMED_SEM);
 	TEST_AND_EXIT_ERRNO(sem_status == -1, "sem_destroy:sem_destroy failed");
 	shmdt(vmem);
 }
