@@ -54,7 +54,7 @@ static void update_age_reset_ref(void) {
 			page = vmem->pt.framepage[i];
 			if(page != VOID_IDX){
 				unsigned char referenceBit = vmem->pt.entries[page].flags&PTF_PRESENT;
-				vmem->pt.entries[page].age =  (vmem->pt.entries[page].age>>1)|referenceBit;
+				vmem->pt.entries[page].age =  (vmem->pt.entries[page].age>>1)|(referenceBit<<7);
 			}
 		}
 	}

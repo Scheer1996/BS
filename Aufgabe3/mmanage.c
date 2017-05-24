@@ -414,12 +414,16 @@ int find_remove_aging(void) {
 	int i;
 	
 	for(i = frameToReplace; i < VMEM_NFRAMES; i++){
-		if(vmem->pt.framepage[i] != VOID_IDX && counter > vmem->pt.entries[vmem->pt.framepage[i]].age){
+		if(vmem->pt.framepage[i] != VOID_IDX && counter >= vmem->pt.entries[vmem->pt.framepage[i]].age){
 			frameToReplace = i;
 			counter = vmem->pt.entries[vmem->pt.framepage[i]].age;
 		}
 	}
 	
+	if(vmem->pt.framepage[frameToReplace] != VOID_IDX) {
+		vmem->pt.entries[vmem->pt.framepage[frameToReplace]].age = 0x80;
+	}
+
 	return frameToReplace;
 }
 
