@@ -21,3 +21,34 @@ vmappl.o:vmappl.c vmappl.h
 	
 clean:
 	rm *.o mmanage vmappl
+	
+	
+VMEM_PAGESIZE=8
+	
+CC = gcc
+CFLAGS = -DVMEM_PAGESIZE=$(VMEM_PAGESIZE)
+LDFLAGS = -lpthread
+
+SRC1 = mmanage.c pagefile.c logger.c
+SCR2 = vmaccess.c vmappl.c 
+OBJ1 = $(SRC1:%.c=%.o)
+OBJ2 = $(SRC2:%.c=%.o)
+
+all: mmanage vmappl
+
+mmanage: $(OBJ1)
+	$(CC) -o mmanage $(OBJ1) $(LDFLAGS)
+vmappl: $(OBJ2)
+	 $(CC) -o vmappl $(OBJ2) $(LDFLAGS)
+
+
+.PHONY: clean
+clean:
+	rm -rf $(OBJ1)
+	rm -rf $(OBJ2)
+	rm -rf mmanage vmappl
+	rm -rf logfile.txt pagefile.bin
+
+.PHONY: deps
+deps: 	
+	$(CC) $(SRC) > makefile.dependencies
