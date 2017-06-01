@@ -34,6 +34,25 @@ static void vmem_init(void) {
 	
 	vmem = (struct vmem_struct*) shmat(shmid, NULL, 0);
 	TEST_AND_EXIT_ERRNO(shmid < 0, "shmat: shmat failed");
+	
+	vmem->adm.req_pageno = VOID_IDX;             //!< number of requested page 
+    	vmem->adm.next_alloc_idx = 0;          //!< next frame to allocate by FIFO and CLOCK page replacement algorithm
+    	vmem->adm.pf_count = 0;               //!< page fault counter 
+    	vmem->adm.g_count = -1;                 //!< global acces counter as quasi-timestamp - will be increment by each memory access
+	
+	int i;
+	for(i = 0; i < VMEM_NPAGES; i++){
+		vmem->pt.entries[i].flags = 0;
+		vmem->pt.entries[i].frame = VOID_IDX;
+		vmem->pt.entries[i].count = 0;
+		vmem->pt.entries[i].age = 0;
+	}
+	for(i = 0; i < VMEM_NFRAMES; i++){
+		vmem->pt.framepage[i] = VOID_IDX;
+	}
+	for(i = 0; i < VMEM_NFRAMES * VMEM_PAGESIZE; i++){
+		vmem->data[i] = 0;
+	}
 }
 
 /**
@@ -72,7 +91,7 @@ static void update_age_reset_ref(void) {
  ****************************************************************************************/
 static void vmem_put_page_into_mem(int address) {
 	vmem->adm.req_pageno = address / VMEM_PAGESIZE;//Set the page which has to be loaded into memory
-	vmem->adm.pf_count++;//Increase the page fail counter
+	TEST_AND_EXIT_ERRNO(vmem->adm.req_pageno < 0 || vmem->adm.req_pageno >= VMEM_NPAGES,"Die page ist auserhalb der page table 2");
 	
 	kill(vmem->adm.mmanage_pid,SIGUSR1);//Tell the mmanage process to load the page into memory
 	
@@ -81,29 +100,33 @@ static void vmem_put_page_into_mem(int address) {
 
 int vmem_read(int address) {
 	
-	//Check if it shared memory was initialised
+	//Check if shared memory was initialised
 	if(vmem == NULL){
 		vmem_init();
 	}
 	
+	vmem->adm.g_count++;
 	
 	int pageNumber = address / VMEM_PAGESIZE;//Get the page number from the address
+	TEST_AND_EXIT_ERRNO(pageNumber < 0 || pageNumber >= VMEM_NPAGES,"Die page ist auserhalb der page table r");
+	
 	int offset = address % VMEM_PAGESIZE;//Get offset inside page of address
-	int frame = vmem->pt.entries[pageNumber].frame;//Get the frame where the page is saved
+	TEST_AND_EXIT_ERRNO(offset < 0 || offset >= VMEM_PAGESIZE,"Der offset ist auserhalb der pagesize r");
+	
 	
 	//If the page isn't in a frame call it into memory
-	if(frame == VOID_IDX){
+	if((vmem->pt.entries[pageNumber].flags & PTF_PRESENT) == 0){
 		vmem_put_page_into_mem(address);//Put it into memory
-		frame = vmem->pt.entries[pageNumber].frame;//Get its frame
 	}
 	
-	vmem->pt.entries[pageNumber].flags |= PTF_REF;//Reference the page
-
-	vmem->adm.g_count++;
+	vmem->pt.entries[pageNumber].flags |= PTF_REF; //Reference the page
+	
 	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
 		update_age_reset_ref();
 	}
 	
+	
+	int frame = vmem->pt.entries[pageNumber].frame;//Get the frame where the page is saved
 	//Read data from memory
 	return vmem->data[frame*VMEM_PAGESIZE + offset];
 }
@@ -113,23 +136,28 @@ void vmem_write(int address, int data) {
 		vmem_init();
 	}
 	
-	int pageNumber = address / VMEM_PAGESIZE;
-	int offset = address % VMEM_PAGESIZE;
-	int frame = vmem->pt.entries[pageNumber].frame;
+	vmem->adm.g_count++;
 	
-	if(frame == VOID_IDX){
+	
+	int pageNumber = address / VMEM_PAGESIZE;//Get the page number from the address
+	TEST_AND_EXIT_ERRNO(pageNumber < 0 || pageNumber >= VMEM_NPAGES,"Die page ist auserhalb der page table w");
+	
+	int offset = address % VMEM_PAGESIZE;//Get offset inside page of address
+	TEST_AND_EXIT_ERRNO(offset < 0 || offset >= VMEM_PAGESIZE,"Der offset ist auserhalb der pagesize w");
+	
+	
+	if((vmem->pt.entries[pageNumber].flags & PTF_PRESENT) == 0){
 		vmem_put_page_into_mem(address);
-		frame = vmem->pt.entries[pageNumber].frame;
 	}
 	
 	vmem->pt.entries[pageNumber].flags |= PTF_DIRTY; //Set it to dirty so its writen into disk
 	vmem->pt.entries[pageNumber].flags |= PTF_REF; //Reference the page
-
-	vmem->adm.g_count++;
+	
 	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
 		update_age_reset_ref();
 	}
-
+	
+	int frame = vmem->pt.entries[pageNumber].frame;//Get the frame where the page is saved
 	vmem->data[frame*VMEM_PAGESIZE + offset] = data;
 }
 

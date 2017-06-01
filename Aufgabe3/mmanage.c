@@ -295,10 +295,6 @@ void vmem_init(void) {
 	vmem->adm.size = VMEM_VIRTMEMSIZE;               //!< size of virtual memory supported by mmanage
 	vmem->adm.mmanage_pid = getpid();          //!< process id if mmanage - will be used for sending signals to mmanage
     	vmem->adm.shm_id = shmid;                //!< shared memory id. Will be used to destroy shared memory when mmanage terminates
-    	vmem->adm.req_pageno = 0;             //!< number of requested page 
-    	vmem->adm.next_alloc_idx = 0;          //!< next frame to allocate by FIFO and CLOCK page replacement algorithm
-    	vmem->adm.pf_count = 0;               //!< page fault counter 
-    	vmem->adm.g_count = 0;                 //!< global acces counter as quasi-timestamp - will be increment by each memory access
 	
 	int i;
 	for(i = 0; i < VMEM_NPAGES; i++){
@@ -310,7 +306,9 @@ void vmem_init(void) {
 	for(i = 0; i < VMEM_NFRAMES; i++){
 		vmem->pt.framepage[i] = VOID_IDX;
 	}
-	
+	for(i = 0; i < VMEM_NFRAMES * VMEM_PAGESIZE; i++){
+		vmem->data[i] = 0;
+	}
 }
 
 int find_free_frame() {
@@ -328,7 +326,9 @@ int find_free_frame() {
 void allocate_page(void) {
 	
 	//Gets called when a page is not in memory
-	
+
+	vmem->adm.pf_count++;//Increase the page fail counter
+  
 	int freePageIndex = find_free_frame();//Checks if there is a free frame 
 	
 	//If yes load the page into that frame
@@ -355,7 +355,6 @@ void fetch_page(int pt_idx) {
 	int frame = vmem->pt.entries[pt_idx].frame;//Gets the frame where the page is loaded
 	int *frame_start = vmem->data + frame*VMEM_PAGESIZE;//Gets the starting address of the frame in memory
 	fetch_page_from_pagefile(pt_idx, frame_start);//Loads the page into memory
-	vmem->pt.framepage[frame] = pt_idx;//Lets the page table know what frame has the to be loaded page
 }
 
 void store_page(int pt_idx) {
@@ -366,11 +365,13 @@ void store_page(int pt_idx) {
 }
 
 void update_pt(int frame) {
-	vmem->pt.entries[vmem->adm.req_pageno].frame = frame;//Sets the page frame where it will be loaded
-	vmem->pt.entries[vmem->adm.req_pageno].flags |= PTF_PRESENT;//Sets its flag to present
+	int pt_idx = vmem->adm.req_pageno;
+	vmem->pt.entries[pt_idx].frame = frame;//Sets the page frame where it will be loaded
+	vmem->pt.entries[pt_idx].flags = PTF_PRESENT;//Sets its flag to present
+	vmem->pt.framepage[frame] = pt_idx;//Lets the page table know what frame has the to be loaded page
 	
 	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
-		vmem->pt.entries[vmem->adm.req_pageno].age = 0x80;
+		vmem->pt.entries[pt_idx].age = 0x80;
 	}
 }
 
@@ -453,7 +454,9 @@ void cleanup(void) {
 	int sem_status = sem_close(local_sem);
 	sem_status = sem_unlink(NAMED_SEM);
 	TEST_AND_EXIT_ERRNO(sem_status == -1, "sem_destroy:sem_destroy failed");
+	
 	shmdt(vmem);
+	shmctl(SHMPROCID ,IPC_RMID,NULL);
 }
 
 void dump_pt(void) {
