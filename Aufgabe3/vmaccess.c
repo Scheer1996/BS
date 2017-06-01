@@ -35,13 +35,13 @@ static void vmem_init(void) {
 	vmem = (struct vmem_struct*) shmat(shmid, NULL, 0);
 	TEST_AND_EXIT_ERRNO(shmid < 0, "shmat: shmat failed");
 	
-	vmem->adm.req_pageno = VOID_IDX;             //!< number of requested page 
-    	vmem->adm.next_alloc_idx = 0;          //!< next frame to allocate by FIFO and CLOCK page replacement algorithm
-    	vmem->adm.pf_count = 0;               //!< page fault counter 
-    	vmem->adm.g_count = -1;                 //!< global acces counter as quasi-timestamp - will be increment by each memory access
+	//vmem->adm.req_pageno = VOID_IDX;             //!< number of requested page 
+    	//vmem->adm.next_alloc_idx = 0;          //!< next frame to allocate by FIFO and CLOCK page replacement algorithm
+    	//vmem->adm.pf_count = 0;               //!< page fault counter 
+    	//vmem->adm.g_count = -1;                 //!< global acces counter as quasi-timestamp - will be increment by each memory access
 	
-	int i;
-	for(i = 0; i < VMEM_NPAGES; i++){
+	//int i;
+	/*for(i = 0; i < VMEM_NPAGES; i++){
 		vmem->pt.entries[i].flags = 0;
 		vmem->pt.entries[i].frame = VOID_IDX;
 		vmem->pt.entries[i].count = 0;
@@ -52,7 +52,7 @@ static void vmem_init(void) {
 	}
 	for(i = 0; i < VMEM_NFRAMES * VMEM_PAGESIZE; i++){
 		vmem->data[i] = 0;
-	}
+	}*/
 }
 
 /**
@@ -105,7 +105,6 @@ int vmem_read(int address) {
 		vmem_init();
 	}
 	
-	vmem->adm.g_count++;
 	
 	int pageNumber = address / VMEM_PAGESIZE;//Get the page number from the address
 	TEST_AND_EXIT_ERRNO(pageNumber < 0 || pageNumber >= VMEM_NPAGES,"Die page ist auserhalb der page table r");
@@ -121,6 +120,7 @@ int vmem_read(int address) {
 	
 	vmem->pt.entries[pageNumber].flags |= PTF_REF; //Reference the page
 	
+	vmem->adm.g_count++;
 	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
 		update_age_reset_ref();
 	}
@@ -136,7 +136,6 @@ void vmem_write(int address, int data) {
 		vmem_init();
 	}
 	
-	vmem->adm.g_count++;
 	
 	
 	int pageNumber = address / VMEM_PAGESIZE;//Get the page number from the address
@@ -153,6 +152,7 @@ void vmem_write(int address, int data) {
 	vmem->pt.entries[pageNumber].flags |= PTF_DIRTY; //Set it to dirty so its writen into disk
 	vmem->pt.entries[pageNumber].flags |= PTF_REF; //Reference the page
 	
+	vmem->adm.g_count++;
 	if(vmem->adm.page_rep_algo == VMEM_ALGO_AGING){
 		update_age_reset_ref();
 	}

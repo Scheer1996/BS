@@ -296,6 +296,11 @@ void vmem_init(void) {
 	vmem->adm.mmanage_pid = getpid();          //!< process id if mmanage - will be used for sending signals to mmanage
     	vmem->adm.shm_id = shmid;                //!< shared memory id. Will be used to destroy shared memory when mmanage terminates
 	
+	vmem->adm.req_pageno = VOID_IDX;             //!< number of requested page 
+    	vmem->adm.next_alloc_idx = 0;          //!< next frame to allocate by FIFO and CLOCK page replacement algorithm
+    	vmem->adm.pf_count = 0;               //!< page fault counter 
+    	vmem->adm.g_count = 0;                 //!< global acces counter as quasi-timestamp - will be increment by each memory access
+	
 	int i;
 	for(i = 0; i < VMEM_NPAGES; i++){
 		vmem->pt.entries[i].flags = 0;
@@ -450,9 +455,9 @@ int find_remove_clock(void) {
 
 void cleanup(void) {
 	
-	//int sem_status = sem_destroy(local_sem);
-	int sem_status = sem_close(local_sem);
-	sem_status = sem_unlink(NAMED_SEM);
+	int sem_status = sem_destroy(local_sem);
+	//int sem_status = sem_close(local_sem);
+	//sem_status = sem_unlink(NAMED_SEM);
 	TEST_AND_EXIT_ERRNO(sem_status == -1, "sem_destroy:sem_destroy failed");
 	
 	shmdt(vmem);

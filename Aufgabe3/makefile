@@ -1,7 +1,7 @@
 VMEM_PAGESIZE=8
 	
 CC = gcc
-CFLAGS = -g -mno-ms-bitfields -DVMEM_PAGESIZE=$(VMEM_PAGESIZE)
+CFLAGS = -g -DVMEM_PAGESIZE=$(VMEM_PAGESIZE)
 LDFLAGS = -g -DVMEM_PAGESIZE=$(VMEM_PAGESIZE) -lpthread
 
 SRC1 = mmanage.c pagefile.c logger.c
