@@ -1,18 +1,4 @@
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/fs.h>
-#include <linux/cdev.h>
-#include <linux/jiffies.h>
-#include <linux/string.h>
-#include <linux/types.h>
-#include <asm/uaccess.h>
-#include <linux/string.h>
-
-#define MINOR_START 0
-#define DEVICE_COUNT 2
-#define BUFFER_SIZE 128
-#define MINIMUM(a,b)  ((a) < (b) ? (a) : (b))
+#include "aufgabe.h"
 
 
 static int aufgabe_major;
@@ -21,66 +7,74 @@ static int momentane_zeile_zeichen_anzahl;
 static u64 zeit_stempel;
 static int zeit_seit_letzte_gelessene_zeile;
 
-int open(struct inode *inode, struct file *filp) {
+int aufgabe_open(struct inode *inode, struct file *filp) {
 	
 	PDEBUG("OPEN\n");
 
 	return 0;
 }
 
-int release(struct inode *inode, struct file *filp) {
+int aufgabe_release(struct inode *inode, struct file *filp) {
 	// Nothing to do
 	PDEBUG("RELEASE\n");
 	return 0;
 }
 
 
-ssize_t read(struct file *filp
+ssize_t aufgabe_read(struct file *filp
 , char *buffer,//Buffer denn man fuelt
 size_t buffer_length,//Die lange des buffers
 loff_t *f_offset//Unser offset im file
 ){
 	int ubergeben = 0;
+	char ausgabe_buffer[BUFFER_SIZE] = { 0 };
 	
 	if(*f_offset != 0){ //zweiter read befehl
 		return 0;
 	}
 	PDEBUG("Data mit der lange %d wird gelessen\n", buffer_length);
 	
-	char ausgabe_buffer[BUFFER_SIZE]
-	
 	sprintf(ausgabe_buffer,"%i  %u\n",letzte_zeile_zeichen_anzahl,zeit_seit_letzte_gelessene_zeile);
 	
 	ubergeben = MINIMUM(strlen(ausgabe_buffer),buffer_length);
+	
+	if(copy_to_user(buffer,ausgabe_buffer,ubergeben)){
+		PDEBUG("Daten wurden nicht gesendet");
+	}
+	else{
+		PDEBUG("Daten wurden gesendet");
+	}
 	
 	return ubergeben;
 	
 }
 
-ssize_t write(struct file *filp, char *buffer,size_t buffer_length,loff_t *f_offset){
+ssize_t aufgabe_write(struct file *filp,const char *buffer,size_t buffer_length,loff_t *f_offset){
 
-		letzte_zeile_zeichen_anzahl = momentane_zeile_zeichen_anzahl;
-		momentane_zeile_zeichen_anzahl = buffer_length;
-		
-		
-		u64 temp = get_jiffies_64();
-		zeit_seit_letzte_gelessene_zeile = time_after(zeit_stempel,temp);
-		zeit_seit_letzte_gelessene_zeile = zeit_seit_letzte_gelessene_zeile * 1000 / Hz;
-		zeit_stempel = temp;
-	
+	u64 temp = 0;
+
+	letzte_zeile_zeichen_anzahl = momentane_zeile_zeichen_anzahl;
+	momentane_zeile_zeichen_anzahl = buffer_length;
+
+	temp = (u64)get_jiffies_64();
+	zeit_seit_letzte_gelessene_zeile = temp - zeit_stempel;
+	zeit_seit_letzte_gelessene_zeile = zeit_seit_letzte_gelessene_zeile * 1000 / HZ;
+	zeit_stempel = temp;
+	return buffer_length;
 }
 
 struct file_operations fops = {
-       .read = read,
-       .write = write,
-       .open = open,
-       .release = release
+       .read = aufgabe_read,
+       .write = aufgabe_write,
+       .open = aufgabe_open,
+       .release = aufgabe_release
     };
 
 static int aufgabe_init(void){
-	
 	int result;
 	dev_t dev = 0;
+	
+	PDEBUG("Modul initialisation wurde gestartet\n");
 	
 	result = alloc_chrdev_region(&dev,MINOR_START,DEVICE_COUNT,"aufgabe");
 	if (result < 0) {
@@ -92,6 +86,8 @@ static int aufgabe_init(void){
 	letzte_zeile_zeichen_anzahl = 0;
 	zeit_seit_letzte_gelessene_zeile = 0;
 	
+	PDEBUG("Modul wurde mit der major numer %i gestartert\n",aufgabe_major);
+	
 	return 0;
 }
 
@@ -99,6 +95,7 @@ static void aufgabe_exit(void){
 	dev_t devno = MKDEV(aufgabe_major, MINOR_START);
 	
 	unregister_chrdev_region(devno,DEVICE_COUNT);
+	PDEBUG("Modul wurde aufgereumt\n");
 }
 
 

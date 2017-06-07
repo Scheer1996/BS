@@ -13,6 +13,6 @@
 #define DEVICE_COUNT 2
 #define BUFFER_SIZE 128
 
-
+#define PDEBUG(fmt, args...) printk(KERN_DEBUG "aufgabe: "fmt, ## args)
 #define MINIMUM(a,b)  ((a) < (b) ? (a) : (b))
 
