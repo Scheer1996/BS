@@ -2,15 +2,15 @@
 
 module="aufgabe"
 device="aufgabe"
-mode="666"
+mode=666
+
+sudo rm /dev/$device
 
 sudo /sbin/insmod ./$module.ko $* || exit 1
 
 bash filter.sh
 
 #sudo tail -f /var/log/kern.log
-
-sudo rm /dev/$device
 
 major=$(grep $module /proc/devices | cut -c-4)
 
