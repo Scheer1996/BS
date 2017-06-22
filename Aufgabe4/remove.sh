@@ -11,4 +11,4 @@ echo Der modul wurde entfernt
 
 bash filter.sh
 
-sudo rm /dev/$device
+sudo rm -f /dev/$device

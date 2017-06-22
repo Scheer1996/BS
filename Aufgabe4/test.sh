@@ -2,7 +2,10 @@
 
 destination="/dev/aufgabe"
 
+cat < $destination
+sleep 1
 echo "Hallo" > $destination
+cat < $destination
 sleep 5
 echo "Test" > $destination
 cat < $destination

@@ -8,11 +8,21 @@
 #include <linux/types.h>
 #include <asm/uaccess.h>
 #include <linux/string.h>
+#include <linux/mutex.h>
+#include <linux/delay.h>
 
 #define MINOR_START 0
-#define DEVICE_COUNT 2
+#define DEVICE_COUNT 1
 #define BUFFER_SIZE 128
 
-#define PDEBUG(fmt, args...) printk(KERN_DEBUG "aufgabe: "fmt, ## args)
+#ifndef REF_TIME
+#define REF_TIME -1
+#endif
+
+#ifndef REF_SIZE
+#define REF_SIZE -1
+#endif
+
+#define PDEBUG(fmt, args...) printk(KERN_DEBUG "Aufgabe: "fmt, ## args)
 #define MINIMUM(a,b)  ((a) < (b) ? (a) : (b))
 

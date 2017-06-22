@@ -4,7 +4,7 @@ module="aufgabe"
 device="aufgabe"
 mode=666
 
-sudo rm /dev/$device
+sudo rm -f /dev/$device
 
 sudo /sbin/insmod ./$module.ko $* || exit 1
 
